@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+
+  <title>QUnit Test Suite</title>
+
+  <!-- QUnit styles -->
+  <link rel="stylesheet" href="qunit/qunit.css">
+</head>
+
+<body>
+  <!-- QUnit stucture -->
+  <div id="qunit"></div>
+
+  <!-- Testing libs -->
+  <script src="qunit/qunit.js"></script>
+
+  <!-- Load application -->
+  <script src="js/jquery.js"></script>
+  <script src="js/underscore.js"></script>
+  <script src="js/backbone.js"></script>
+  <script src="../backbone-identity-map.js"></script>
+
+  <script type="text/javascript">
+
+module("plugins/backbone-identity-map", {
+  teardown: function() {
+    Backbone.IdentityMap.resetCache();
+  }
+});
+
+var TestModel = Backbone.IdentityMap(Backbone.Model.extend({}, {
+  classMethod: function() {
+    return 'returned from class method';
+  }
+}));
+
+test("class methods should be accessible", function() {
+  ok(TestModel.classMethod);
+  equal(TestModel.classMethod(), 'returned from class method');
+});
+
+test('returns the same object if it has been created before', function() {
+  var testModel1 = new TestModel({id: 1});
+  var testModel2 = new TestModel({id: 1});
+
+  strictEqual(testModel2, testModel1);
+});
+
+test('returns a new object if there is no ID', function() {
+  var testModel1 = new TestModel({});
+  var testModel2 = new TestModel({});
+  notStrictEqual(testModel2, testModel1);
+});
+
+test('returns a new object if there are no attributes', function() {
+  var testModel = new TestModel();
+  strictEqual(testModel.id, undefined);
+});
+
+test('sets attributes of a new object', function() {
+  var testModel1 = new TestModel({id: 1, name: 'name1'});
+  equal(testModel1.get('name'), 'name1');
+});
+
+test('updates attributes of an object that has been created before', function() {
+  var testModel1 = new TestModel({id: 1, name: 'name1'});
+  var testModel2 = new TestModel({id: 1, name: 'name2'});
+
+  strictEqual(testModel2, testModel1);
+  equal(testModel1.get('name'), 'name2');
+});
+
+test("new operator for backbone models that have supplied a different idAttribute should return a cached object if IDs are provided", function() {
+  var ModelWithDifferentId = Backbone.IdentityMap(Backbone.Model.extend({
+    idAttribute: 'uid'
+  }));
+
+  var model1 = new ModelWithDifferentId({uid: 1});
+  var model2 = new ModelWithDifferentId({uid: 1});
+
+  strictEqual(model1, model2);
+});
+
+test('does not remove attributes of an object that have been created before', function() {
+  var testModel1 = new TestModel({id: 1, name: 'name1'});
+  var testModel2 = new TestModel({id: 1});
+
+  equal(testModel2.get('name'), 'name1');
+});
+
+test('adds an instance to the map when the instance gets an ID for the first time', function() {
+  var testModel1 = new TestModel();
+  testModel1.set('id', 1);
+  var testModel2 = new TestModel({id: 1});
+  strictEqual(testModel2, testModel1);
+});
+
+test('sends options through to the constructor', function() {
+  var testModel1 = new TestModel({id: 1}, {collection: 'collection'});
+  strictEqual(testModel1.collection, 'collection');
+});
+
+test('returns the correct instance if there are two instances with the same ID but different constructors', function() {
+  var TestModel1 = Backbone.IdentityMap(Backbone.Model.extend({}));
+  var TestModel2 = Backbone.IdentityMap(Backbone.Model.extend({}));
+
+  var testModel1 = new TestModel1({id: 1});
+  var testModel2 = new TestModel2({id: 1});
+  var testModel3 = new TestModel1({id: 1});
+
+  strictEqual(testModel3, testModel1);
+});
+
+test('returns the correct instance if there are two instances with the same constructor but different IDs', function() {
+  var testModel1 = new TestModel({id: 1});
+  var testModel2 = new TestModel({id: 2});
+  var testModel3 = new TestModel({id: 1});
+
+  strictEqual(testModel3, testModel1);
+});
+
+test("cloning models should create a new object", function() {
+  var testModel = new TestModel({id: 1});
+  var clone = testModel.clone();
+
+  notStrictEqual(testModel, clone);
+});
+
+test('models in a collection should also be subject to identity mapping', function() {
+  var TestCollection = Backbone.Collection.extend({
+    model: TestModel
+  });
+
+  var testCollection = new TestCollection([{id: 1}]);
+  var testModel = new TestModel({id: 1});
+
+  strictEqual(testCollection.at(0), testModel);
+});
+
+test('when creating an object for a collection from the cache, any attributes assigned are parsed correctly', function() {
+  var ParsedModel = Backbone.IdentityMap(Backbone.Model.extend({
+      parse: function(resp) {
+        resp.copiedAttr1 = resp.attr1;
+        return resp;
+      }
+  }));
+  var ParsedCollection = Backbone.Collection.extend({
+    model: ParsedModel
+  });
+
+  var model = new ParsedModel({id: 1, attr1: 2 });
+  var collection = new ParsedCollection([{id: 1, attr1: 4 }], { parse: true });
+
+  strictEqual(model.get('copiedAttr1'), 4);
+});
+
+test('models have events', function() {
+  var testModel = new TestModel({id: 1});
+
+  ok(_.isFunction(testModel.on));
+  ok(_.isFunction(testModel.off));
+});
+
+  </script>
+</body>
+</html>
