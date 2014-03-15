@@ -27,6 +27,11 @@
   // value: model object
   var cache = {};
 
+  // Stores usage count for stored models
+  // key: (unique identifier per class) + ':' + (model id)
+  // value: current usage count. Call release() to decrement
+  var counts = {};
+
   /**
    * realConstructor: a backbone model constructor function
    * returns a constructor function that acts like realConstructor,
@@ -58,13 +63,24 @@
           }
           object.set(attributes);
         }
+        cache[cacheKey].release = function() {
+          counts[cacheKey]--;
+        };
+        counts[cacheKey] = (counts[cacheKey] || 0) + 1;
         return cache[cacheKey];
       } else {
         var obj = create();
+        obj.release = function() {};
+
         // when an object's id is set, add it to the cache
         obj.on('change:' + realConstructor.prototype.idAttribute,
           function(model, objectId) {
-            cache[classCacheKey + ':' + objectId] = obj;
+            var cacheKey = classCacheKey + ':' + objectId;
+            cache[cacheKey] = obj;
+            counts[cacheKey] = (counts[cacheKey] || 0) + 1;
+            this.release = function() {
+              counts[cacheKey]--;
+            };
             obj.off(null, null, this);
           },
         this);
@@ -80,6 +96,28 @@
    */
   Backbone.IdentityMap.resetCache = function() {
     cache = {};
+    counts = {};
+  };
+
+  /**
+   * Clear unused items from the cache.
+   */
+  Backbone.IdentityMap.purgeCache = function() {
+    _.each(counts, function(count, cacheKey) {
+      if (count <= 0 && cache[cacheKey]) {
+        delete cache[cacheKey];
+      }
+    });
+  };
+
+  /**
+   * Inspect what's in the cache & store.
+   */
+  Backbone.IdentityMap.getCache = function() {
+    return {
+      cache: cache,
+      counts: counts
+    };
   };
 
 })();
